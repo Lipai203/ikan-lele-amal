@@ -1,0 +1,32 @@
+Plan (tombol demo menuju email perusahaan)
+
+Informasi yang sudah didapat
+- Konten website: file utama berada di index.html dan kontak.html.
+- `kontak.html` sudah memiliki tombol "Kirim (Demo)" namun onclick/submit menampilkan alert demo dan menyarankan menggunakan WhatsApp.
+- `style.css` sudah menyediakan styling untuk class tombol `btn` dan `btn-primary`.
+- `app.js` saat ini hanya mengatur WhatsApp pop-up, reveal on scroll, dan footer year.
+
+Tujuan
+- Tambahkan tombol demo yang mengarah ke email perusahaan menggunakan link `mailto:`.
+
+Plan perubahan (level file)
+1) Edit `kontak.html`
+   - Tambahkan tombol baru bertipe `a` dengan class `btn` (opsional `btn-primary`) yang menggunakan href:
+     - `mailto:senasaka141210@gmail.com?subject=...&body=...`
+   - Letakkan tombol di area form kontak, misalnya setelah tombol "Kirim (Demo)" atau menggantinya jika diinginkan.
+   - Ubah teks fineprint agar tidak hanya menyarankan WhatsApp, tetapi juga ada opsi email.
+
+2) (Opsional) Edit `index.html`
+   - Jika ingin tombol demo tersedia juga di halaman beranda, duplikasi komponen tombol serupa di section hero-actions.
+
+3) Update `TODO.md`
+   - Tandai checklist selesai setelah implementasi.
+
+Dependent Files
+- `kontak.html`
+- `TODO.md`
+- (Opsional) `index.html`
+
+Follow-up steps
+- Buka `kontak.html` di browser dan klik tombol email untuk memastikan aplikasi email (Outlook/Gmail) terbuka.
+

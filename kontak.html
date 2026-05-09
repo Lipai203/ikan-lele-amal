@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kontak | Lele Sehat Prima</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="nav" role="banner">
+    <div class="container nav-inner">
+      <a class="brand" href="./index.html" aria-label="Beranda">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 12c-3.2 6-9.2 8-15 8 2-2 3-4 3-8s-1-6-3-8c5.8 0 11.8 2 15 8Z" fill="rgba(255,255,255,.92)"/>
+            <path d="M10 9.3c.9 1 .9 2.4 0 3.4" stroke="rgba(5,32,18,.95)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M18.8 8.2c-1.1.6-2.2 1.7-2.7 3.8" stroke="rgba(5,32,18,.75)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Lele Sehat Prima</h1>
+          <small>Pertenakan ikan lele profesional</small>
+        </div>
+      </a>
+
+      <nav class="nav-links" aria-label="Navigasi utama">
+        <a href="./tentang.html">Tentang</a>
+        <a href="./layanan.html">Layanan</a>
+        <a href="./keunggulan.html">Keunggulan</a>
+        <a href="./kontak.html" class="cta">Kontak</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="contact">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <h3 class="reveal">Kontak</h3>
+            <p class="reveal">Kirim pesan atau klik tombol WhatsApp untuk langsung menghubungi nomor perusahaan.</p>
+          </div>
+        </div>
+
+        <div class="contact-wrap">
+          <div class="card reveal">
+            <form class="form" id="contactForm" onsubmit="event.preventDefault();">
+
+              <div>
+                <label for="nama">Nama</label>
+                <input id="nama" name="nama" placeholder="Nama Anda" required />
+              </div>
+              <div>
+                <label for="kontak">Nomor/Email</label>
+                <input id="kontak" name="kontak" placeholder="No. HP / Email" required />
+              </div>
+              <div>
+                <label for="pesan">Kebutuhan</label>
+                <textarea id="pesan" name="pesan" placeholder="Contoh: ingin bibit/pembesaran/panenn..." required></textarea>
+              </div>
+              <button class="btn btn-primary" type="submit" aria-label="Kirim pesan via email">
+                <span aria-hidden="true">✉️</span> Kirim Pesan
+              </button>
+              <div class="fineprint">Tombol ini mengirim email perusahaan dari server (tanpa membuka Gmail).</div>
+
+
+            </form>
+          </div>
+
+          <div class="card reveal">
+            <div class="icon" aria-hidden="true">📋</div>
+            <h4>Informasi Perusahaan</h4>
+            <p style="margin-bottom:12px;">
+              <b>Alamat:</b> 
+              <br/>Nama Usaha: Lele Sehat Prima
+              <br/>Jalan: (Isi nama jalan & nomor)
+              <br/>Kelurahan/Desa: (Isi kelurahan/desa)
+              <br/>Kecamatan: (Isi kecamatan)
+              <br/>Kota/Kabupaten: (Isi kota/kabupaten)
+              <br/>Provinsi: (Isi provinsi)
+              <br/>Kode Pos: (isi kode pos)
+              <br/><br/>
+              <b>Jam Operasional:</b> Senin–Minggu, 08.00–17.00
+              <br/>
+              <b>Email:</b> info@contohperusahaan.com
+              <br/>
+              <b>Telepon/WA:</b> (isi nomor telepon/WA)
+            </p>
+
+            <div class="map-wrap" aria-label="Peta lokasi">
+              <div class="map-label">Lokasi Kami</div>
+              <iframe
+                class="map-iframe"
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                title="Peta lokasi Lele Sehat Prima"
+                src="https://www.google.com/maps?q=Jakarta&output=embed">
+              </iframe>
+              <div class="fineprint">Silakan ganti link peta (src) sesuai alamat Anda.</div>
+            </div>
+
+            <div class="fineprint">Untuk order dan estimasi panen, klik tombol WhatsApp.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>© <span id="year"></span> Lele Sehat Prima. Semua hak dilindungi.</div>
+      <div>Website perusahaan pertenakan ikan lele (demo profesional).</div>
+    </div>
+  </footer>
+
+  <!-- WhatsApp Pop-up -->
+  <div class="wa-fab" aria-label="WhatsApp">
+    <div class="wa-pop" id="waPop" aria-hidden="true">
+      <div class="wa-panel" role="dialog" aria-label="Kontak WhatsApp">
+        <div class="wa-row">
+          <div class="wa-bubble-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 12c0-4.4-3.6-8-8-8s-8 3.6-8 8c0 1.4.4 2.7 1 3.9L3 21l5.2-1.7c1.1.6 2.4 1 3.8 1 4.4 0 8-3.6 8-8Z" stroke="rgba(255,255,255,.92)" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M9.4 9.2c.3-.5.6-.6 1-.4.3.1.7.4.9.7.2.3.2.6 0 .9l-.4.6c.5.9 1.3 1.7 2.2 2.2l.6-.4c.3-.2.6-.2.9 0 .3.2.6.6.7.9.2.4.1.7-.4 1-1 .6-2.4.4-4-.9-1.3-1.6-1.6-3-.9-4Z" fill="rgba(255,255,255,.92)"/>
+            </svg>
+          </div>
+          <div>
+            <b>Hubungi kami via WhatsApp</b>
+            <span id="waMsg">Klik “Buka WhatsApp” untuk mengarah ke nomor perusahaan.</span>
+          </div>
+        </div>
+        <div class="wa-actions">
+          <button class="wa-close" id="waClose" type="button">Tutup</button>
+          <a class="wa-open" id="waOpen" href="#" target="_blank" rel="noopener">Buka WhatsApp</a>
+        </div>
+      </div>
+    </div>
+
+    <button class="wa-toggle" id="waToggle" type="button" aria-label="Buka WhatsApp">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M20 12c0-4.4-3.6-8-8-8s-8 3.6-8 8c0 1.4.4 2.7 1 3.9L3 21l5.2-1.7c1.1.6 2.4 1 3.8 1 4.4 0 8-3.6 8-8Z" stroke="rgba(5,32,18,.95)" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M9.4 9.2c.3-.5.6-.6 1-.4.3.1.7.4.9.7.2.3.2.6 0 .9l-.4.6c.5.9 1.3 1.7 2.2 2.2l.6-.4c.3-.2.6-.2.9 0 .3.2.6.6.7.9.2.4.1.7-.4 1-1 .6-2.4.4-4-.9-1.3-1.6-1.6-3-.9-4Z" fill="rgba(5,32,18,.95)"/>
+      </svg>
+      <span class="sr-only">WhatsApp</span>
+    </button>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
+
