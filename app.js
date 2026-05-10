@@ -116,7 +116,7 @@ const waOpen = document.getElementById('waOpen');
 
 function buildWaLink() {
   const text = encodeURIComponent('Halo, saya ingin tanya tentang layanan pertenakan/pesan lele.');
-  return `https://wa.me/${WA_NUMBER}?text=${text}`;
+  return `https://wa.me/${+6281357068983}?text=${text}`;
 }
 
 if (waOpen) {
@@ -125,7 +125,7 @@ if (waOpen) {
 
 const waMsg = document.getElementById('waMsg');
 if (waMsg) {
-  waMsg.textContent = `Klik “Buka WhatsApp” untuk mengarah ke nomor: ${WA_NUMBER}`;
+  waMsg.textContent = `Klik “Buka WhatsApp” untuk mengarah ke nomor: ${+6281357068983}`;
 }
 
 function openPop() {
