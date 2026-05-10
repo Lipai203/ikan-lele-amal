@@ -21,6 +21,12 @@ const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 
 const smtpUser = mustGet('SMTP_USER');
 const smtpPass = mustGet('SMTP_PASS');
 const mailTo = mustGet('MAIL_TO');
+
+// Prevent running with placeholder credentials (common for demo/template .env)
+if (String(smtpUser).includes('your_') || String(smtpPass).includes('your_') || String(smtpPass).includes('your_app_password')) {
+  console.error('SMTP credentials look like placeholders. Please update server/.env with real Gmail App Password.');
+}
+
 const mailFrom = process.env.MAIL_FROM || smtpUser;
 
 const transporter = nodemailer.createTransport({
