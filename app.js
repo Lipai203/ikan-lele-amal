@@ -119,6 +119,7 @@ function buildWaLink() {
   return `https://wa.me/${+6281357068983}?text=${text}`;
 }
 
+
 if (waOpen) {
   waOpen.href = buildWaLink();
 }
@@ -127,6 +128,7 @@ const waMsg = document.getElementById('waMsg');
 if (waMsg) {
   waMsg.textContent = `Klik “Buka WhatsApp” untuk mengarah ke nomor: ${+6281357068983}`;
 }
+
 
 function openPop() {
   if (!waPop) return;
