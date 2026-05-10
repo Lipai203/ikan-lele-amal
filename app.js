@@ -32,8 +32,10 @@ function buildMailtoUrl({ nama, kontak, pesan }) {
 // ====== Form Kontak (Kirim Pesan) ======
 // Untuk kirim email TANPA membuka Gmail, submit form akan POST ke backend.
 // Jalankan server dulu di folder server, lalu pastikan BASE_URL sesuai.
-const EMAIL_API_BASE_URL = 'http://localhost:3000';
-const SEND_EMAIL_ENDPOINT = `${EMAIL_API_BASE_URL}/api/send-email`;
+// Vercel serverless endpoint (production):
+// Gunakan relative path agar kompatibel saat domain berubah.
+const SEND_EMAIL_ENDPOINT = '/api/send-email';
+
 
 function setFormSubmitting(submitting) {
   if (!contactForm) return;
