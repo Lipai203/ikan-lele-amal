@@ -1,55 +1,46 @@
-import nodemailer from 'nodemailer';
+// Vercel Serverless Function: POST /api/send-email
+// Mengirim email via Gmail SMTP menggunakan Nodemailer.
+// NOTE: UI tidak diubah. Frontend tetap mengirim JSON (nama, kontak/email, pesan) dari kontak.html.
 
-function getRequired(name, env) {
-  const v = env[name];
+const nodemailer = require('nodemailer');
+
+function getRequired(name) {
+  const v = process.env[name];
   if (!v) throw new Error(`Missing env var: ${name}`);
   return v;
 }
 
+function escapeText(s, maxLen = 2000) {
+  return String(s ?? '')
+    .replaceAll('\r', '')
+    .replaceAll('\n', '\n')
+    .trim()
+    .slice(0, maxLen);
+}
+
 function isValidEmail(email) {
-  // simple email check
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
 }
 
 function normalizeKontak(k) {
-  // Accept either email or WhatsApp number-ish.
   const raw = String(k || '').trim();
   if (!raw) return '';
 
-  // Remove spaces/dashes/parentheses for phone normalization
+  // Normalisasi nomor: hapus spasi/tanda kurung/dash
   const phone = raw.replace(/[\s\-()]/g, '');
-
-  // If it looks like a phone (digits, optional leading +), keep digits+leading+
   if (/^\+?\d{7,15}$/.test(phone)) {
-    // convert to digits without + for Gmail body consistency
+    // di body cukup tanpa '+', biar konsisten
     return phone.startsWith('+') ? phone.slice(1) : phone;
   }
-
   return raw;
 }
 
-function escapeText(s) {
-  return String(s ?? '')
-    .replaceAll('\r', '')
-    .replaceAll('\n', '\n')
-    .slice(0, 2000);
-}
-
-// Simple spam protection (no storage):
-// - basic length limits
-// - naive human check using a lightweight proof-of-work style token is not possible without UI.
-// So we only do conservative validation + rate guard via serverless runtime headers.
 function basicSpamCheck({ nama, kontak, pesan }) {
-  const now = Date.now();
-  // This is just a guard for absurdly fast bot submissions (best-effort).
-  // If Vercel runs multiple invocations without headers, this still helps only partially.
-  void now;
-
-  if (String(pesan).length > 2000) return 'pesan terlalu panjang';
+  // proteksi sederhana berbasis validasi & konten
   if (String(nama).length > 120) return 'nama terlalu panjang';
   if (String(kontak).length > 120) return 'kontak terlalu panjang';
+  if (String(pesan).length > 2000) return 'pesan terlalu panjang';
 
-  // Reject messages that look like copy-paste keywords only.
   const p = String(pesan).toLowerCase();
   const suspicious = ['spam', 'viagra', 'casino', 'bit.ly', 'http://', 'https://'];
   if (suspicious.some((w) => p.includes(w))) return 'konten terindikasi spam';
@@ -57,82 +48,134 @@ function basicSpamCheck({ nama, kontak, pesan }) {
   return null;
 }
 
-export default async function handler(req, res) {
+async function sendWithGmailSMTP({ nama, kontak, pesan }) {
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = Number(process.env.SMTP_PORT || 587);
+  const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
+  const emailUser = getRequired('EMAIL_USER');
+  const emailPass = getRequired('EMAIL_PASS');
+  const mailTo = getRequired('MAIL_TO');
+  const mailFrom = process.env.MAIL_FROM || emailUser;
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    auth: {
+      user: emailUser,
+      pass: emailPass
+    }
+  });
+
+  const subject = 'Permintaan Informasi Lele (Website)';
+  const text = [
+    'Halo Pak/Bu,',
+    '',
+    'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
+    '',
+    `Nama: ${nama}`,
+    `Kontak/WhatsApp/Email: ${kontak}`,
+    `Kebutuhan: ${pesan}`,
+    '',
+    'Terima kasih.'
+  ].join('\n');
+
+  await transporter.sendMail({
+    from: mailFrom,
+    to: mailTo,
+    subject,
+    text
+  });
+}
+
+async function sendWithResendFallback({ nama, kontak, pesan }) {
+  const resendApiKey = getRequired('RESEND_API_KEY');
+  const resendTo = getRequired('MAIL_TO');
+
+  // Resend is optional (fallback). Avoid extra dependencies.
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${resendApiKey}`
+    },
+    body: JSON.stringify({
+      from: process.env.MAIL_FROM || process.env.EMAIL_USER,
+      to: resendTo,
+      subject: 'Permintaan Informasi Lele (Website)',
+      text: [
+        'Halo Pak/Bu,',
+        '',
+        'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
+        '',
+        `Nama: ${nama}`,
+        `Kontak/WhatsApp/Email: ${kontak}`,
+        `Kebutuhan: ${pesan}`,
+        '',
+        'Terima kasih.'
+      ].join('\n')
+    })
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => 'Resend request failed');
+    throw new Error(`Resend failed: ${msg}`);
+  }
+}
+
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    res.status(405).json({ ok: false, error: 'Method not allowed' });
+    return;
   }
 
   try {
-    const env = process.env;
+    const { nama, kontak, pesan } = req.body || {};
 
-    // Required env
-    const smtpHost = getRequired('SMTP_HOST', env);
-    const smtpPort = Number(env.SMTP_PORT || 587);
-    const smtpSecure = String(env.SMTP_SECURE || 'false').toLowerCase() === 'true';
-    const smtpUser = getRequired('SMTP_USER', env);
-    const smtpPass = getRequired('SMTP_PASS', env);
-    const mailTo = getRequired('MAIL_TO', env);
-    const mailFrom = env.MAIL_FROM || smtpUser;
-
-    const { nama, email, kontak, pesan } = req.body || {};
-
-    // Compatibility with your requested fields:
-    // - nama: req.body.nama
-    // - email: optional (not in current UI)
-    // - kontak: req.body.kontak (used for WhatsApp or email)
-    // - pesan: req.body.pesan
-
-    const namaClean = escapeText(nama).trim();
-    const kontakClean = normalizeKontak(kontak ?? email ?? '');
-    const pesanClean = escapeText(pesan).trim();
+    const namaClean = escapeText(nama, 120);
+    const kontakClean = normalizeKontak(kontak);
+    const pesanClean = escapeText(pesan, 2000);
 
     if (!namaClean || !kontakClean || !pesanClean) {
-      return res.status(400).json({ ok: false, error: 'nama, kontak/WhatsApp, dan pesan wajib diisi' });
+      res.status(400).json({ ok: false, error: 'nama, kontak/WhatsApp, dan pesan wajib diisi' });
+      return;
     }
 
-    // Validate email or phone-ish for kontak
-    const isEmail = isValidEmail(kontakClean);
-    const isPhoneish = /^\d{7,15}$/.test(kontakClean);
-    if (!isEmail && !isPhoneish) {
-      return res.status(400).json({ ok: false, error: 'kontak harus berupa email atau nomor WhatsApp yang valid' });
+    const kontakIsEmail = isValidEmail(kontakClean);
+    const kontakIsPhone = /^\d{7,15}$/.test(kontakClean);
+    if (!kontakIsEmail && !kontakIsPhone) {
+      res.status(400).json({ ok: false, error: 'kontak harus berupa email atau nomor WhatsApp yang valid' });
+      return;
     }
 
     const spamReason = basicSpamCheck({ nama: namaClean, kontak: kontakClean, pesan: pesanClean });
     if (spamReason) {
-      return res.status(400).json({ ok: false, error: `Spam rejected: ${spamReason}` });
+      res.status(400).json({ ok: false, error: `Spam rejected: ${spamReason}` });
+      return;
     }
 
-    const subject = 'Permintaan Informasi Lele (Website)';
-    const lines = [
-      'Halo Pak/Bu,',
-      '',
-      'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
-      '',
-      `Nama: ${namaClean}`,
-      `Kontak/WhatsApp/Email: ${kontakClean}`,
-      `Kebutuhan: ${pesanClean}`,
-      '',
-      'Terima kasih.'
-    ];
+    // Logging error untuk Vercel Logs
+    // (Logging hanya error, tidak membeberkan data sensitif.)
+    try {
+      await sendWithGmailSMTP({ nama: namaClean, kontak: kontakClean, pesan: pesanClean });
+      res.status(200).json({ ok: true });
+      return;
+    } catch (smtpErr) {
+      console.error('SMTP send failed:', smtpErr);
 
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: { user: smtpUser, pass: smtpPass }
-    });
+      // Fallback ke Resend bila Gmail SMTP bermasalah
+      if (process.env.RESEND_API_KEY) {
+        await sendWithResendFallback({ nama: namaClean, kontak: kontakClean, pesan: pesanClean });
+        res.status(200).json({ ok: true, fallback: 'resend' });
+        return;
+      }
 
-    await transporter.sendMail({
-      from: mailFrom,
-      to: mailTo,
-      subject,
-      text: lines.join('\n')
-    });
-
-    return res.status(200).json({ ok: true });
+      res.status(500).json({ ok: false, error: 'Gagal mengirim email' });
+      return;
+    }
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, error: 'Gagal mengirim email' });
+    console.error('Unhandled error in /api/send-email:', err);
+    res.status(500).json({ ok: false, error: 'Gagal mengirim email' });
   }
-}
+};
 
