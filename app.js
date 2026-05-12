@@ -84,16 +84,29 @@ if (contactForm) {
       });
 
       if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        const msg = data?.error || 'Gagal mengirim email.';
+        const result = await resp.json().catch(() => null);
+        console.error('[contact] api response not ok', {
+          status: resp.status,
+          statusText: resp.statusText,
+          result
+        });
+        const msg = result?.error || 'Gagal mengirim email.';
         throw new Error(msg);
       }
 
-      await resp.json();
+      const result = await resp.json().catch(() => null);
+      if (!result || result.success !== true) {
+        console.error('[contact] api returned unsuccessful result', result);
+        const msg = result?.error || 'Gagal mengirim email.';
+        throw new Error(msg);
+      }
+
       statusEl.textContent = 'Pesan terkirim! Terima kasih.';
       contactForm.reset();
     } catch (err) {
+      console.error('[contact] send-email failed', err);
       statusEl.textContent = `Pengiriman gagal: ${err.message}`;
+
 
       // Fallback untuk situasi backend belum aktif (optional): gunakan mailto
       // agar pengguna tetap bisa menghubungi via email client.

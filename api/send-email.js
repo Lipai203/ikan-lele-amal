@@ -123,7 +123,7 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
-    res.status(405).json({ ok: false, error: 'Method not allowed' });
+    res.status(405).json({ success: false, error: 'Method not allowed' });
     return;
   }
 
@@ -143,37 +143,39 @@ module.exports = async function handler(req, res) {
     const pesanClean = escapeText(pesan, 2000);
 
     if (!namaClean) {
-      res.status(400).json({ ok: false, error: 'Nama wajib diisi' });
+      res.status(400).json({ success: false, error: 'Nama wajib diisi' });
       return;
     }
     if (!emailClean) {
-      res.status(400).json({ ok: false, error: 'Email/Kontak wajib diisi' });
+      res.status(400).json({ success: false, error: 'Email/Kontak wajib diisi' });
       return;
     }
     if (!pesanClean) {
-      res.status(400).json({ ok: false, error: 'Pesan wajib diisi' });
+      res.status(400).json({ success: false, error: 'Pesan wajib diisi' });
       return;
     }
 
+
     if (!isValidEmail(emailClean)) {
-      res.status(400).json({ ok: false, error: 'Email pelanggan harus berupa email valid' });
+      res.status(400).json({ success: false, error: 'Email pelanggan harus berupa email valid' });
       return;
     }
 
     const spamReason = basicSpamCheck({ nama: namaClean, email: emailClean, pesan: pesanClean });
     if (spamReason) {
-      res.status(400).json({ ok: false, error: `Spam rejected: ${spamReason}` });
+      res.status(400).json({ success: false, error: `Spam rejected: ${spamReason}` });
       return;
     }
 
     await sendWithGmailSMTP({ nama: namaClean, emailKontak: emailClean, pesan: pesanClean });
 
     console.log('[send-email] smtp success');
-    res.status(200).json({ ok: true });
+    res.status(200).json({ success: true });
   } catch (err) {
     console.error('[send-email] error', err);
     const status = err && typeof err.statusCode === 'number' ? err.statusCode : 500;
-    res.status(status).json({ ok: false, error: status === 429 ? err.message : 'Gagal mengirim email' });
+    res.status(status).json({ success: false, error: status === 429 ? err.message : 'Gagal mengirim email' });
   }
 };
+
 
