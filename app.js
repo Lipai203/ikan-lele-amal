@@ -118,8 +118,11 @@ const waOpen = document.getElementById('waOpen');
 
 function buildWaLink() {
   const text = encodeURIComponent('Halo, saya ingin tanya tentang layanan pertenakan/pesan lele.');
-  return `https://wa.me/${+6281357068983}?text=${text}`;
+  // format: https://wa.me/628xxxxxxxxxx?text=...
+  const number = '6281357068983';
+  return `https://wa.me/${number}?text=${text}`;
 }
+
 
 
 if (waOpen) {

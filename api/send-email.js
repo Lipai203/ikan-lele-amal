@@ -1,6 +1,6 @@
 // Vercel Serverless Function: POST /api/send-email
 // Mengirim email via Gmail SMTP menggunakan Nodemailer.
-// NOTE: UI tidak diubah. Frontend tetap mengirim JSON (nama, kontak/email, pesan) dari kontak.html.
+// UI tidak diubah. Frontend mengirim JSON (nama, kontak/email, pesan).
 
 const nodemailer = require('nodemailer');
 
@@ -8,6 +8,46 @@ function getRequired(name) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env var: ${name}`);
   return v;
+}
+
+// simple in-memory rate limit (per process)
+const RATE_LIMIT = {
+  windowMs: 10_000,
+  maxRequests: 3,
+  buckets: new Map() // ip -> { count, resetAt }
+};
+
+function getClientIp(req) {
+  const xf = req.headers?.['x-forwarded-for'];
+  if (typeof xf === 'string') {
+    return xf.split(',')[0].trim();
+  }
+  return req.headers?.['x-real-ip'] || 'unknown';
+}
+
+function rateLimitCheck(req) {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const b = RATE_LIMIT.buckets.get(ip);
+  if (!b) {
+    RATE_LIMIT.buckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
+    return;
+  }
+
+  if (now > b.resetAt) {
+    b.count = 1;
+    b.resetAt = now + RATE_LIMIT.windowMs;
+    RATE_LIMIT.buckets.set(ip, b);
+    return;
+  }
+
+  b.count += 1;
+  if (b.count > RATE_LIMIT.maxRequests) {
+    const sec = Math.ceil((b.resetAt - now) / 1000);
+    const err = new Error(`Terlalu banyak permintaan. Coba lagi dalam ${sec} detik.`);
+    err.statusCode = 429;
+    throw err;
+  }
 }
 
 function sanitizeNoCRLF(s) {
@@ -23,7 +63,6 @@ function escapeText(s, maxLen = 2000) {
 
 function isValidEmail(email) {
   const v = String(email ?? '').trim();
-  // simple-but-safe email regex
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
@@ -46,7 +85,9 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
 
   const emailUser = getRequired('EMAIL_USER');
   const emailPass = getRequired('EMAIL_PASS');
-  const emailReceiver = getRequired('EMAIL_RECEIVER');
+  const emailReceiver = getRequired('RECEIVER_EMAIL');
+
+  const mailFrom = `"Website" <${emailUser}>`;
 
   const transporter = nodemailer.createTransport({
     host: smtpHost,
@@ -57,10 +98,6 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
       pass: emailPass
     }
   });
-
-  // Ketentuan: email pengirim harus memakai: from: "Website"
-  // Gunakan format name <email> agar tetap valid secara RFC
-  const mailFrom = `"Website" <${emailUser}>`;
 
   const subject = 'Permintaan Informasi Lele (Website)';
   const text = [
@@ -78,7 +115,7 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
   await transporter.sendMail({
     from: mailFrom,
     to: emailReceiver,
-    replyTo: emailKontak, // ketentuan: email pelanggan dimasukkan ke replyTo
+    replyTo: emailKontak,
     subject,
     text
   });
@@ -93,17 +130,31 @@ module.exports = async function handler(req, res) {
   try {
     const { nama, kontak, pesan } = req.body || {};
 
-    // Validasi field: nama, email(kontak), pesan
+    console.log('[send-email] request', {
+      nama: typeof nama === 'string' ? nama.slice(0, 60) : '(non-string)'
+    });
+
+    // anti-spam sederhana: rate limit
+    rateLimitCheck(req);
+
+    // validasi sesuai requirement
     const namaClean = escapeText(nama, 120);
     const emailClean = sanitizeNoCRLF(kontak);
     const pesanClean = escapeText(pesan, 2000);
 
-    if (!namaClean || !emailClean || !pesanClean) {
-      res.status(400).json({ ok: false, error: 'nama, email (kontak), dan pesan wajib diisi' });
+    if (!namaClean) {
+      res.status(400).json({ ok: false, error: 'Nama wajib diisi' });
+      return;
+    }
+    if (!emailClean) {
+      res.status(400).json({ ok: false, error: 'Email/Kontak wajib diisi' });
+      return;
+    }
+    if (!pesanClean) {
+      res.status(400).json({ ok: false, error: 'Pesan wajib diisi' });
       return;
     }
 
-    // Ketentuan: field email pelanggan harus valid agar dapat diset ke replyTo
     if (!isValidEmail(emailClean)) {
       res.status(400).json({ ok: false, error: 'Email pelanggan harus berupa email valid' });
       return;
@@ -116,10 +167,13 @@ module.exports = async function handler(req, res) {
     }
 
     await sendWithGmailSMTP({ nama: namaClean, emailKontak: emailClean, pesan: pesanClean });
+
+    console.log('[send-email] smtp success');
     res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('Unhandled error in /api/send-email:', err);
-    res.status(500).json({ ok: false, error: 'Gagal mengirim email' });
+    console.error('[send-email] error', err);
+    const status = err && typeof err.statusCode === 'number' ? err.statusCode : 500;
+    res.status(status).json({ ok: false, error: status === 429 ? err.message : 'Gagal mengirim email' });
   }
 };
 

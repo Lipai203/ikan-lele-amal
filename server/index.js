@@ -23,7 +23,11 @@ const smtpPass = mustGet('SMTP_PASS');
 const mailTo = mustGet('MAIL_TO');
 
 // Prevent running with placeholder credentials (common for demo/template .env)
-if (String(smtpUser).includes('your_') || String(smtpPass).includes('your_') || String(smtpPass).includes('your_app_password')) {
+if (
+  String(smtpUser).includes('your_') ||
+  String(smtpPass).includes('your_') ||
+  String(smtpPass).includes('your_app_password')
+) {
   console.error('SMTP credentials look like placeholders. Please update server/.env with real Gmail App Password.');
 }
 
@@ -43,39 +47,14 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/send-email', async (req, res) => {
-  try {
-    const { nama, kontak, pesan } = req.body || {};
-
-    if (!nama || !kontak || !pesan) {
-      return res.status(400).json({ ok: false, error: 'nama, kontak, dan pesan wajib diisi' });
-    }
-
-    const subject = 'Permintaan Informasi Lele (Website)';
-    const text = [
-      'Halo Pak/Bu,',
-      '',
-      'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
-      '',
-      `Nama: ${nama}`,
-      `Kontak/Email: ${kontak}`,
-      `Kebutuhan: ${pesan}`,
-      '',
-      'Terima kasih.'
-    ].join('\n');
-
-    await transporter.sendMail({
-      from: mailFrom,
-      to: mailTo,
-      subject,
-      text
-    });
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ ok: false, error: 'Gagal mengirim email' });
-  }
+// Endpoint Express ini adalah versi lama.
+// Untuk produksi yang benar di Vercel, kirim email WAJIB lewat endpoint serverless: `api/send-email.js`.
+// Guard ini mencegah dua backend berbeda digunakan (yang bisa bikin masalah stabilitas real-time).
+app.post('/api/send-email', (_req, res) => {
+  res.status(410).json({
+    ok: false,
+    error: 'Endpoint lama dinonaktifkan. Gunakan /api/send-email (Vercel serverless).'
+  });
 });
 
 const port = Number(process.env.PORT || 3000);

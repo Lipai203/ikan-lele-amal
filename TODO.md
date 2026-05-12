@@ -9,6 +9,7 @@
   - [x] Penanganan error lengkap dengan `console.error`.
   - [x] Response JSON konsisten success/error.
   - [x] Endpoint kompatibel Vercel serverless.
-- [ ] Deploy ulang dan tes submit form.
+- [x] Deploy ulang dan tes submit form.
+
 
 
