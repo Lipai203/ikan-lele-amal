@@ -76,7 +76,7 @@ function basicSpamCheck({ nama, email, pesan }) {
   return null;
 }
 
-async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
+async function sendWithGmailSMTP({ nama, kontak, pesan }) {
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = Number(process.env.SMTP_PORT || 587);
   const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
@@ -99,7 +99,7 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
     'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
     '',
     `Nama: ${nama}`,
-    `Kontak (Email): ${emailKontak}`,
+    `Kontak: ${kontak}`,
     `Kebutuhan: ${pesan}`,
     '',
     'Terima kasih.'
@@ -108,7 +108,7 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
   await transporter.sendMail({
     from: `"Website" <${emailUser}>`,
     to: emailReceiver,
-    replyTo: emailKontak,
+    replyTo: replyToEmail,
     subject,
     text
   });
@@ -146,12 +146,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // Kontak wajib email valid (agar replyTo aman)
-    if (!isValidEmail(kontakClean)) {
-      return res.status(400).json({
-        error: 'Kontak harus berupa email valid'
-      });
-    }
+ // Kontak boleh berupa nomor WA atau email
+const replyToEmail = isValidEmail(kontakClean)
+  ? kontakClean
+  : process.env.EMAIL_USER;
 
     // Spam check ringan
     const spamReason = basicSpamCheck({ nama: namaClean, email: kontakClean, pesan: pesanClean });
@@ -161,7 +159,11 @@ export default async function handler(req, res) {
       });
     }
 
-    await sendWithGmailSMTP({ nama: namaClean, emailKontak: kontakClean, pesan: pesanClean });
+    await sendWithGmailSMTP({
+  nama: namaClean,
+  kontak: kontakClean,
+  pesan: pesanClean
+});
 
     return res.status(200).json({
       success: true,
