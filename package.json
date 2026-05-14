@@ -4,7 +4,8 @@
   "dependencies": {
     "nodemailer": "^8.0.7"
   },
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": "18.x"
+  }
 }
-
-
