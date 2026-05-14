@@ -108,7 +108,7 @@ async function sendWithGmailSMTP({ nama, kontak, pesan }) {
   await transporter.sendMail({
     from: `"Website" <${emailUser}>`,
     to: emailReceiver,
-    replyTo: replyToEmail,
+    replyTo: isValidEmail(kontak) ? kontak : emailUser,
     subject,
     text
   });
