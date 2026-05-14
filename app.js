@@ -131,7 +131,7 @@ if (contactForm) {
 
       // simple timeout agar bisa tangkap kasus server timeout
       const resp = await withTimeout(
-        fetch(SEND_EMAIL_ENDPOINT, {
+        fetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nama, kontak, pesan })
