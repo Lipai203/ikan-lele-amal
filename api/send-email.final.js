@@ -1,5 +1,6 @@
 // Vercel Serverless Function: POST /api/send-email
 // Mengirim email via Gmail SMTP menggunakan Nodemailer.
+// UI tidak diubah. Frontend mengirim JSON (nama, kontak/email, pesan).
 
 const nodemailer = require('nodemailer');
 
@@ -9,10 +10,11 @@ function getRequired(name) {
   return v;
 }
 
+// simple in-memory rate limit (per instance)
 const RATE_LIMIT = {
   windowMs: 10_000,
   maxRequests: 3,
-  buckets: new Map()
+  buckets: new Map() // ip -> { count, resetAt }
 };
 
 function getClientIp(req) {
@@ -60,6 +62,7 @@ function escapeText(s, maxLen = 2000) {
 
 function isValidEmail(email) {
   const v = String(email ?? '').trim();
+  // basic email format check
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
@@ -88,7 +91,10 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
     host: smtpHost,
     port: smtpPort,
     secure: smtpSecure,
-    auth: { user: emailUser, pass: emailPass }
+    auth: {
+      user: emailUser,
+      pass: emailPass
+    }
   });
 
   const subject = 'Permintaan Informasi Lele (Website)';
@@ -104,6 +110,7 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
     'Terima kasih.'
   ].join('\n');
 
+  // Use stable headers
   await transporter.sendMail({
     from: `"Website" <${emailUser}>`,
     to: emailReceiver,
@@ -114,19 +121,22 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
 }
 
 export default async function handler(req, res) {
-  try {
-    if (req.method === 'OPTIONS') {
-      res.status(204).end();
-      return;
-    }
+  // Allow only POST
+  if (req.method === 'OPTIONS') {
+    // CORS preflight: keep minimal.
+    // If you need allowlist, add CORS_ORIGINS and set Access-Control-Allow-Origin accordingly.
+    res.status(204).end();
+    return;
+  }
 
-    if (req.method !== 'POST') {
+  if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
 
+  try {
+    // Rate limit
     rateLimitCheck(req);
-
 
     const body = req.body || {};
     const nama = body?.nama;
@@ -137,6 +147,7 @@ export default async function handler(req, res) {
     const kontakClean = sanitizeNoCRLF(kontak);
     const pesanClean = escapeText(pesan, 2000);
 
+    // Validate per requirement
     if (!namaClean) {
       res.status(400).json({ error: 'Nama wajib diisi' });
       return;
@@ -150,6 +161,7 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Requirement says form email should work normally; enforce email validity for kontak
     if (!isValidEmail(kontakClean)) {
       res.status(400).json({ error: 'Kontak harus berupa email valid' });
       return;
@@ -166,7 +178,7 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true });
   } catch (err) {
     const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-    const message = typeof err?.message === 'string' ? err.message : 'Gagal mengirim email';
+    const message = err?.message && typeof err.message === 'string' ? err.message : 'Gagal mengirim email';
     res.status(status).json({ error: message });
   }
 }

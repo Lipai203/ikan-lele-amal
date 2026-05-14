@@ -36,9 +36,35 @@ function buildMailtoUrl({ nama, kontak, pesan }) {
 // Gunakan relative path agar kompatibel saat domain berubah.
 const SEND_EMAIL_ENDPOINT = '/api/send-email';
 
+function getFieldValue(id) {
+  return document.getElementById(id)?.value?.trim() || '';
+}
+
+function showAlert(msg) {
+  // simple alert sesuai requirement
+  alert(msg);
+}
+
+function validateFormOrAlert({ nama, kontak, pesan }) {
+  if (!nama) return showAlert('Nama wajib diisi.'), false;
+  if (!kontak) return showAlert('Kontak wajib diisi.'), false;
+  if (!pesan) return showAlert('Pesan wajib diisi.'), false;
+  return true;
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), ms))
+  ]);
+}
+
+
+
 
 function setFormSubmitting(submitting) {
   if (!contactForm) return;
+
   const btn = contactForm.querySelector('button[type="submit"]');
   const inputs = contactForm.querySelectorAll('input, textarea, button[type="submit"]');
 
@@ -47,6 +73,25 @@ function setFormSubmitting(submitting) {
     btn.style.opacity = submitting ? '0.7' : '1';
     btn.style.cursor = submitting ? 'not-allowed' : 'pointer';
     btn.setAttribute('aria-busy', submitting ? 'true' : 'false');
+
+    // Loading state sesuai requirement
+    const currentTextEl = btn.querySelector('span')?.nextSibling;
+    const saved = btn.getAttribute('data-default-text');
+    if (!saved) {
+      // simpan teks default tanpa ikon
+      btn.setAttribute('data-default-text', btn.textContent.replace('✉️', '').replace('Kirim Pesan', 'Kirim Pesan').trim());
+    }
+
+    if (submitting) {
+      btn.textContent = 'Mengirim...';
+    } else {
+      const defaultText = btn.getAttribute('data-default-text');
+      btn.textContent = defaultText || 'Kirim Pesan';
+      // kembalikan ikon envelope jika ada
+      if (!btn.querySelector('span')) {
+        btn.prepend(document.createElement('span'));
+      }
+    }
   }
 
   inputs.forEach((el) => {
@@ -54,6 +99,7 @@ function setFormSubmitting(submitting) {
     el.disabled = submitting;
   });
 }
+
 
 const contactForm = document.getElementById('contactForm');
 if (contactForm) {
@@ -73,15 +119,25 @@ if (contactForm) {
       contactForm.appendChild(statusEl);
     }
 
+    // validasi form + alert sesuai requirement
+    if (!validateFormOrAlert({ nama, kontak, pesan })) {
+      return;
+    }
+
     try {
       statusEl.textContent = 'Mengirim pesan...';
       setFormSubmitting(true);
 
-      const resp = await fetch(SEND_EMAIL_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nama, kontak, pesan })
-      });
+
+      // simple timeout agar bisa tangkap kasus server timeout
+      const resp = await withTimeout(
+        fetch(SEND_EMAIL_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama, kontak, pesan })
+        }),
+        15000
+      );
 
       if (!resp.ok) {
         const result = await resp.json().catch(() => null);
@@ -105,7 +161,13 @@ if (contactForm) {
       contactForm.reset();
     } catch (err) {
       console.error('[contact] send-email failed', err);
-      statusEl.textContent = `Pengiriman gagal: ${err.message}`;
+      // Error handling detail
+      // - jaringan: biasanya TypeError (fetch)
+      // - timeout: message = 'Request timeout'
+      // - API error: message dari server
+      let msg = err && err.message ? err.message : 'Gagal mengirim email.';
+      if (msg === 'Request timeout') msg = 'Server timeout. Coba lagi sebentar lagi.';
+      statusEl.textContent = `Pengiriman gagal: ${msg}`;
 
 
       // Fallback untuk situasi backend belum aktif (optional): gunakan mailto
@@ -129,12 +191,23 @@ const waClose = document.getElementById('waClose');
 const waOpen = document.getElementById('waOpen');
 
 
+function normalizeWaNumber(n) {
+  // requirement:
+  // - hilangkan '+'
+  // - hilangkan spasi
+  // - hilangkan angka 0 depan (sekali)
+  const raw = String(n ?? '').replaceAll('+', '').replaceAll(' ', '').trim();
+  const wospaces = raw.replaceAll('-', '');
+  return wospaces.startsWith('0') ? wospaces.slice(1) : wospaces;
+}
+
 function buildWaLink() {
   const text = encodeURIComponent('Halo, saya ingin tanya tentang layanan pertenakan/pesan lele.');
   // format: https://wa.me/628xxxxxxxxxx?text=...
-  const number = '6281357068983';
+  const number = normalizeWaNumber('6281357068983');
   return `https://wa.me/${number}?text=${text}`;
 }
+
 
 
 
@@ -144,7 +217,7 @@ if (waOpen) {
 
 const waMsg = document.getElementById('waMsg');
 if (waMsg) {
-  waMsg.textContent = `Klik “Buka WhatsApp” untuk mengarah ke nomor: ${+6281357068983}`;
+waMsg.textContent = `Klik “Buka WhatsApp” untuk mengarah ke nomor: 6281357068983`;
 }
 
 
