@@ -1,19 +1,20 @@
 // Vercel Serverless Function: POST /api/send-email
 // Mengirim email via Gmail SMTP menggunakan Nodemailer.
 
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
-function getRequired(name) {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
 
 const RATE_LIMIT = {
   windowMs: 10_000,
   maxRequests: 3,
   buckets: new Map()
 };
+
+function getRequired(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env var: ${name}`);
+  return v;
+}
 
 function getClientIp(req) {
   const xf = req.headers?.['x-forwarded-for'];
@@ -114,19 +115,20 @@ async function sendWithGmailSMTP({ nama, emailKontak, pesan }) {
 }
 
 export default async function handler(req, res) {
+  // Full error-safety + JSON response requirement
   try {
-    if (req.method === 'OPTIONS') {
-      res.status(204).end();
-      return;
+    if (req.method !== 'POST') {
+      return res.status(405).json({
+        error: 'Method not allowed'
+      });
     }
 
-    if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+
 
     rateLimitCheck(req);
-
 
     const body = req.body || {};
     const nama = body?.nama;
@@ -137,37 +139,42 @@ export default async function handler(req, res) {
     const kontakClean = sanitizeNoCRLF(kontak);
     const pesanClean = escapeText(pesan, 2000);
 
-    if (!namaClean) {
-      res.status(400).json({ error: 'Nama wajib diisi' });
-      return;
-    }
-    if (!kontakClean) {
-      res.status(400).json({ error: 'Kontak wajib diisi' });
-      return;
-    }
-    if (!pesanClean) {
-      res.status(400).json({ error: 'Pesan wajib diisi' });
-      return;
+    // Validasi input (wajib diisi)
+    if (!namaClean || !kontakClean || !pesanClean) {
+      return res.status(400).json({
+        error: 'Semua field wajib diisi'
+      });
     }
 
+    // Kontak wajib email valid (agar replyTo aman)
     if (!isValidEmail(kontakClean)) {
-      res.status(400).json({ error: 'Kontak harus berupa email valid' });
-      return;
+      return res.status(400).json({
+        error: 'Kontak harus berupa email valid'
+      });
     }
 
+    // Spam check ringan
     const spamReason = basicSpamCheck({ nama: namaClean, email: kontakClean, pesan: pesanClean });
     if (spamReason) {
-      res.status(400).json({ error: `Spam rejected: ${spamReason}` });
-      return;
+      return res.status(400).json({
+        error: `Spam rejected: ${spamReason}`
+      });
     }
 
     await sendWithGmailSMTP({ nama: namaClean, emailKontak: kontakClean, pesan: pesanClean });
 
-    res.status(200).json({ success: true });
-  } catch (err) {
-    const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
-    const message = typeof err?.message === 'string' ? err.message : 'Gagal mengirim email';
-    res.status(status).json({ error: message });
+    return res.status(200).json({
+      success: true,
+      message: 'Email berhasil dikirim'
+    });
+  } catch (error) {
+    console.error(error);
+    const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+    const message = typeof error?.message === 'string' ? error.message : 'Gagal mengirim email';
+
+    return res.status(status).json({
+      error: message
+    });
   }
 }
 
