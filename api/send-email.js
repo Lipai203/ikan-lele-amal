@@ -146,11 +146,6 @@ export default async function handler(req, res) {
       });
     }
 
- // Kontak boleh berupa nomor WA atau email
-const replyToEmail = isValidEmail(kontakClean)
-  ? kontakClean
-  : process.env.EMAIL_USER;
-
     // Spam check ringan
     const spamReason = basicSpamCheck({ nama: namaClean, email: kontakClean, pesan: pesanClean });
     if (spamReason) {
