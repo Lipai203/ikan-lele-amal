@@ -5,7 +5,7 @@ const WA_NUMBER = '6281234567890';
 // ====== EMAIL: tujuan perusahaan untuk form kontak ======
 const COMPANY_EMAIL = 'senasaka141210@gmail.com';
 
-function buildMailtoUrl({ nama, kontak, pesan }) {
+function buildMailtoUrl({ nama, email, whatsapp, pesan }) {
   const subject = 'Permintaan Informasi Lele (Website)';
 
 
@@ -15,7 +15,8 @@ function buildMailtoUrl({ nama, kontak, pesan }) {
     'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
     '',
     `Nama: ${nama || '-'}`,
-    `Kontak/Email: ${kontak || '-'}`,
+    `Email: ${email || '-'}`
+    `WhatsApp: ${whatsapp || '-'}`
     `Kebutuhan: ${pesan || '-'}`,
     '',
     'Terima kasih.'
@@ -45,9 +46,10 @@ function showAlert(msg) {
   alert(msg);
 }
 
-function validateFormOrAlert({ nama, kontak, pesan }) {
+function validateFormOrAlert({ nama, email, whatsapp, pesan }) {
   if (!nama) return showAlert('Nama wajib diisi.'), false;
-  if (!kontak) return showAlert('Kontak wajib diisi.'), false;
+  if (!email) return showAlert('Email wajib diisi.'), false;
+  if (!whatsapp) return showAlert('WhatsApp wajib diisi.'), false;
   if (!pesan) return showAlert('Pesan wajib diisi.'), false;
   return true;
 }
@@ -180,7 +182,12 @@ if (contactForm) {
 
       // Fallback untuk situasi backend belum aktif (optional): gunakan mailto
       // agar pengguna tetap bisa menghubungi via email client.
-      const fallbackMailtoUrl = buildMailtoUrl({ nama, kontak, pesan });
+      const fallbackMailtoUrl = buildMailtoUrl({ 
+            nama, 
+            email, 
+            whatsapp, 
+            pesan 
+  });
       // Jangan paksa navigate agar tetap sesuai permintaan tanpa membuka Gmail.
       // Namun jika Anda ingin tetap membuka: uncomment line berikut.
       // window.location.href = fallbackMailtoUrl;
