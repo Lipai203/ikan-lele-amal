@@ -122,9 +122,14 @@ if (contactForm) {
     }
 
     // validasi form + alert sesuai requirement
-    if (!validateFormOrAlert({ nama, kontak, pesan })) {
-      return;
-    }
+    if (!validateFormOrAlert({ 
+  nama, 
+  email, 
+  whatsapp, 
+  pesan 
+})) {
+  return;
+}
 
     try {
       statusEl.textContent = 'Mengirim pesan...';
