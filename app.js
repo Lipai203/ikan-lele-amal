@@ -107,8 +107,10 @@ if (contactForm) {
     e.preventDefault();
 
     const nama = document.getElementById('nama')?.value?.trim();
-    const kontak = document.getElementById('kontak')?.value?.trim();
+    const email = document.getElementById('email')?.value?.trim();
+    const whatsapp = document.getElementById('whatsapp')?.value?.trim();
     const pesan = document.getElementById('pesan')?.value?.trim();
+
 
     // Area status (buat inline jika belum ada)
     let statusEl = document.getElementById('contactStatus');
@@ -134,10 +136,11 @@ if (contactForm) {
         fetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nama, kontak, pesan })
+          body: JSON.stringify({ nama, email, whatsapp, pesan })
         }),
         15000
       );
+
 
       if (!resp.ok) {
         const result = await resp.json().catch(() => null);

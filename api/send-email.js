@@ -1,13 +1,14 @@
 // Vercel Serverless Function: POST /api/send-email
-// Mengirim email via Gmail SMTP menggunakan Nodemailer.
+// Terima pesan dari form website, kirim ke ADMIN, lalu bot auto-reply ke email pelanggan.
 
 import nodemailer from 'nodemailer';
+import { buildAutoReply } from './autoReplyService.js';
 
-
+// Rate limit sederhana per IP (in-memory per instance)
 const RATE_LIMIT = {
   windowMs: 10_000,
   maxRequests: 3,
-  buckets: new Map()
+  buckets: new Map() // ip -> { count, resetAt }
 };
 
 function getRequired(name) {
@@ -76,14 +77,16 @@ function basicSpamCheck({ nama, email, pesan }) {
   return null;
 }
 
-async function sendWithGmailSMTP({ nama, kontak, pesan }) {
+async function sendWithGmailSMTP({ nama, email, whatsapp, pesan }) {
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = Number(process.env.SMTP_PORT || 587);
   const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true';
 
+  // Wajib untuk Gmail SMTP
   const emailUser = getRequired('EMAIL_USER');
   const emailPass = getRequired('EMAIL_PASS');
-  const emailReceiver = getRequired('EMAIL_RECEIVER');
+  // Tujuan admin perusahaan
+  const adminEmail = getRequired('ADMIN_EMAIL');
 
   const transporter = nodemailer.createTransport({
     host: smtpHost,
@@ -92,14 +95,16 @@ async function sendWithGmailSMTP({ nama, kontak, pesan }) {
     auth: { user: emailUser, pass: emailPass }
   });
 
-  const subject = 'Permintaan Informasi Lele (Website)';
-  const text = [
-    'Halo Pak/Bu,',
+  // 1) Email masuk ke admin perusahaan
+  const subjectAdmin = 'Permintaan Informasi Lele (Website)';
+  const textAdmin = [
+    'Halo Admin,',
     '',
-    'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
+    'Ada permintaan baru dari website:',
     '',
     `Nama: ${nama}`,
-    `Kontak: ${kontak}`,
+    `Email: ${email}`,
+    `WhatsApp: ${whatsapp}`,
     `Kebutuhan: ${pesan}`,
     '',
     'Terima kasih.'
@@ -107,71 +112,74 @@ async function sendWithGmailSMTP({ nama, kontak, pesan }) {
 
   await transporter.sendMail({
     from: `"Website" <${emailUser}>`,
-    to: emailReceiver,
-    replyTo: isValidEmail(kontak) ? kontak : emailUser,
-    subject,
-    text
+    to: adminEmail,
+    replyTo: email,
+    subject: subjectAdmin,
+    text: textAdmin
+  });
+
+  // 2) Bot auto-reply ke email pelanggan berdasarkan keyword pesan
+  const { matched, replyText, replyHtml } = buildAutoReply(pesan, { nama });
+
+  const subjectCustomer = matched
+    ? `Terima kasih - Info: ${matched}`
+    : 'Terima kasih atas pesan Anda - Info layanan kami';
+
+  await transporter.sendMail({
+    from: `"Lele Sehat" <${emailUser}>`,
+    to: email,
+    replyTo: adminEmail,
+    subject: subjectCustomer,
+    text: replyText,
+    html: replyHtml
   });
 }
 
 export default async function handler(req, res) {
-  // Full error-safety + JSON response requirement
   try {
-    if (req.method !== 'POST') {
-      return res.status(405).json({
-        error: 'Method not allowed'
-      });
-    }
-
-    if (req.method === 'OPTIONS') {
-      return res.status(204).end();
-    }
-
+    if (req.method === 'OPTIONS') return res.status(204).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
     rateLimitCheck(req);
 
     const body = req.body || {};
     const nama = body?.nama;
-    const kontak = body?.kontak;
+    const email = body?.email;
+    const whatsapp = body?.whatsapp;
     const pesan = body?.pesan;
 
     const namaClean = escapeText(nama, 120);
-    const kontakClean = sanitizeNoCRLF(kontak);
+    const emailClean = sanitizeNoCRLF(email);
+    const whatsappClean = sanitizeNoCRLF(whatsapp);
     const pesanClean = escapeText(pesan, 2000);
 
-    // Validasi input (wajib diisi)
-    if (!namaClean || !kontakClean || !pesanClean) {
-      return res.status(400).json({
-        error: 'Semua field wajib diisi'
-      });
+    // Validasi wajib sesuai requirement
+    if (!namaClean || !emailClean || !whatsappClean || !pesanClean) {
+      return res.status(400).json({ error: 'Semua field wajib diisi' });
     }
 
-    // Spam check ringan
-    const spamReason = basicSpamCheck({ nama: namaClean, email: kontakClean, pesan: pesanClean });
+    if (!isValidEmail(emailClean)) {
+      return res.status(400).json({ error: 'email wajib diisi' });
+    }
+
+    const spamReason = basicSpamCheck({ nama: namaClean, email: emailClean, pesan: pesanClean });
     if (spamReason) {
-      return res.status(400).json({
-        error: `Spam rejected: ${spamReason}`
-      });
+      return res.status(400).json({ error: `Spam rejected: ${spamReason}` });
     }
 
     await sendWithGmailSMTP({
-  nama: namaClean,
-  kontak: kontakClean,
-  pesan: pesanClean
-});
-
-    return res.status(200).json({
-      success: true,
-      message: 'Email berhasil dikirim'
+      nama: namaClean,
+      email: emailClean,
+      whatsapp: whatsappClean,
+      pesan: pesanClean
     });
+
+    return res.status(200).json({ success: true, message: 'Email terkirim + auto-reply berhasil' });
   } catch (error) {
-    console.error(error);
+    console.error('[send-email] error:', error);
     const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
     const message = typeof error?.message === 'string' ? error.message : 'Gagal mengirim email';
-
-    return res.status(status).json({
-      error: message
-    });
+    return res.status(status).json({ error: message });
   }
 }
 
