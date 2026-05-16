@@ -6,24 +6,7 @@ const WA_NUMBER = '6281234567890';
 const COMPANY_EMAIL = 'senasaka141210@gmail.com';
 
 function buildMailtoUrl({ nama, email, whatsapp, pesan }) {
-const safeNama = nama || '-';
-const safeEmail = email || '-';
-const safeWhatsapp = whatsapp || '-';
-const safePesan = pesan || '-';
-
-const subject = 'Permintaan Informasi Lele (Website)';
-
-const body = `
-Nama: ${safeNama}
-Email: ${safeEmail}
-WhatsApp: ${safeWhatsapp}
-
-Kebutuhan:
-${safePesan}
-`;
-
-return mailto:senasaka141210@email.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)};
-}
+  const subject = 'Permintaan Informasi Lele (Website)';
 
 
   const body = [
