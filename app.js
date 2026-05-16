@@ -5,9 +5,9 @@ const WA_NUMBER = '6281234567890';
 // ====== EMAIL: tujuan perusahaan untuk form kontak ======
 const COMPANY_EMAIL = 'senasaka141210@gmail.com';
 
+js
 function buildMailtoUrl({ nama, email, whatsapp, pesan }) {
   const subject = 'Permintaan Informasi Lele (Website)';
-
 
   const body = [
     'Halo Pak/Bu,',
@@ -15,8 +15,8 @@ function buildMailtoUrl({ nama, email, whatsapp, pesan }) {
     'Saya ingin bertanya tentang pembibitan/pembesaran/panen.',
     '',
     `Nama: ${nama || '-'}`,
-    `Email: ${email || '-'}`
-    `WhatsApp: ${whatsapp || '-'}`
+    `Email: ${email || '-'}`,
+    `WhatsApp: ${whatsapp || '-'}`,
     `Kebutuhan: ${pesan || '-'}`,
     '',
     'Terima kasih.'
@@ -29,6 +29,7 @@ function buildMailtoUrl({ nama, email, whatsapp, pesan }) {
 
   return `mailto:${COMPANY_EMAIL}?${params.toString()}`;
 }
+
 
 // ====== Form Kontak (Kirim Pesan) ======
 // Untuk kirim email TANPA membuka Gmail, submit form akan POST ke backend.
