@@ -5,7 +5,7 @@ const WA_NUMBER = '6281234567890';
 // ====== EMAIL: tujuan perusahaan untuk form kontak ======
 const COMPANY_EMAIL = 'senasaka141210@gmail.com';
 
-js
+
 function buildMailtoUrl({ nama, email, whatsapp, pesan }) {
   const subject = 'Permintaan Informasi Lele (Website)';
 
