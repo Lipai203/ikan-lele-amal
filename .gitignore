@@ -1,0 +1,13 @@
+# --- secrets ---
+.env
+amal.env
+
+# --- dependencies ---
+node_modules
+
+# --- vercel ---
+.vercel
+
+# --- OS ---
+.DS_Store
+

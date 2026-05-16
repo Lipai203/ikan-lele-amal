@@ -1,91 +1,225 @@
 import nodemailer from "nodemailer";
+import { buildAdminEmailHtml, buildCustomerAutoReplyHtml } from "./emailTemplate.js";
+import { generateAIReply } from "./aiService.js";
+import { buildAutoReply } from "./autoReplyService.js";
+import { detectKeyword, buildFallbackReplyText } from "./autoReplyKeywords.js";
+import { logRequest, logError, logAIFallback } from "./logger.js";
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
+// Vercel serverless safe code:
+// - Tidak pakai database.
+// - Rate limit per-instance memory cache (cukup untuk anti spam ringan).
+const RATE_LIMIT = {
+  max: 8,
+  windowMs: 15 * 60 * 1000,
+  map: new Map(), // ip -> { count, resetAt }
+};
+
+const MAX = {
+  nama: 60,
+  email: 120,
+  whatsapp: 40,
+  pesan: 1200,
+  aiReply: 600,
+};
+
+function getClientIp(req) {
+  const xff = req.headers?.['x-forwarded-for'];
+  if (!xff) return 'unknown';
+  return String(xff).split(',')[0].trim();
+}
+
+function rateLimitCheck(req) {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const cur = RATE_LIMIT.map.get(ip);
+
+  if (!cur || now > cur.resetAt) {
+    RATE_LIMIT.map.set(ip, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
+    return { ok: true };
   }
 
-  try {
-    const { nama, email, whatsapp, pesan } = req.body;
+  if (cur.count >= RATE_LIMIT.max) {
+    return { ok: false, ip };
+  }
 
-    // ===== VALIDASI SEDERHANA =====
+  cur.count += 1;
+  RATE_LIMIT.map.set(ip, cur);
+  return { ok: true };
+}
+
+function normalizeAndSanitizeText(text, maxLen) {
+  const s = String(text ?? '');
+  // Anti CRLF injection
+  const noCRLF = s.replaceAll('\r', ' ').replaceAll('\n', ' ');
+  // normalize whitespace
+  const trimmed = noCRLF.replaceAll(/\s+/g, ' ').trim();
+  // max length
+  return trimmed.slice(0, maxLen);
+}
+
+function validateEmail(email) {
+  const s = String(email ?? '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+function isSuspiciousSpam({ nama, email, whatsapp, pesan }) {
+  const text = String(pesan ?? '').toLowerCase();
+  const short = text.replaceAll(/\s+/g, ' ').trim();
+
+  if (!short) return true;
+  if (short.length < 10) return true;
+
+  const spamSignals = [
+    'http://',
+    'https://',
+    'www.',
+    'free money',
+    'viagra',
+    'casino',
+    'crypto',
+    'telegram',
+  ];
+
+  if (spamSignals.some((sig) => short.includes(sig))) return true;
+
+  if (short.split(' ').length > 250) return true;
+
+  if (short.includes('!!!') && short.length < 120) return true;
+
+  // basic email presence heuristic (some spam uses fake contact)
+  if (email && !validateEmail(email)) return true;
+
+  return false;
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const ip = getClientIp(req);
+  logRequest({ ip, path: req.url, method: req.method, bodySummary: 'form-submit' });
+
+  const rl = rateLimitCheck(req);
+  if (!rl.ok) {
+    return res.status(429).json({ success: false, error: 'Terlalu banyak permintaan. Coba lagi nanti.' });
+  }
+
+  const overallTimeoutMs = 30000;
+  const overallTimeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Request timeout')), overallTimeoutMs)
+  );
+
+  try {
+    const body = await Promise.race([Promise.resolve(req.body), overallTimeout]);
+    let { nama, email, whatsapp, pesan } = body || {};
+
+    // ===== VALIDASI + SANITASI =====
+    nama = normalizeAndSanitizeText(nama, MAX.nama);
+    email = normalizeAndSanitizeText(email, MAX.email);
+    whatsapp = normalizeAndSanitizeText(whatsapp, MAX.whatsapp);
+    pesan = normalizeAndSanitizeText(pesan, MAX.pesan);
+
     if (!nama || !email || !pesan) {
-      return res.status(400).json({ success: false, error: "Data tidak lengkap" });
+      return res.status(400).json({ success: false, error: 'Data tidak lengkap' });
     }
 
-    // ===== TRANSPORT EMAIL =====
+    if (!validateEmail(email)) {
+      return res.status(400).json({ success: false, error: 'Email tidak valid' });
+    }
+
+    if (isSuspiciousSpam({ nama, email, whatsapp, pesan })) {
+      return res.status(400).json({ success: false, error: 'Permintaan terdeteksi sebagai spam' });
+    }
+
+    // ===== Nodemailer transport =====
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      service: 'gmail',
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
     });
 
-    // ===== KEYWORD BOT =====
-    const text = (pesan || "").toLowerCase();
-
-    let replyMessage = `
-      Terima kasih telah menghubungi Lele Sehat Prima.<br><br>
-      Kami sudah menerima pesan Anda dan akan segera merespon.
-    `;
-
-    if (text.includes("harga")) {
-      replyMessage = "Harga bibit lele mulai dari Rp120 per ekor tergantung ukuran.";
-    } 
-    else if (text.includes("bibit")) {
-      replyMessage = "Kami menyediakan bibit lele ukuran 5–7 cm dan 7–9 cm.";
-    } 
-    else if (text.includes("pengiriman")) {
-      replyMessage = "Kami melayani pengiriman luar kota dengan packing oksigen.";
-    } 
-    else if (text.includes("jam")) {
-      replyMessage = "Jam operasional Senin–Sabtu pukul 08.00–17.00 WIB.";
-    } 
-    else if (text.includes("alamat")) {
-      replyMessage = "Lokasi kami berada di area peternakan Lele Sehat Prima (Jakarta).";
-    } 
-    else if (text.includes("stok")) {
-      replyMessage = "Stok bibit selalu tersedia setiap hari, silakan hubungi kami.";
-    }
-
-    // ===== EMAIL KE ADMIN =====
+    // ===== 1) Email ke Admin =====
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: process.env.ADMIN_EMAIL,
-      subject: "Permintaan dari Website Lele",
-      html: `
-        <h2>Pesan Baru dari Website</h2>
-        <p><b>Nama:</b> ${nama}</p>
-        <p><b>Email:</b> ${email}</p>
-        <p><b>WhatsApp:</b> ${whatsapp || "-"}</p>
-        <p><b>Pesan:</b> ${pesan}</p>
-      `,
+      subject: 'Permintaan dari Website Lele',
+      html: buildAdminEmailHtml({ nama, email, whatsapp, pesan }),
+      replyTo: email,
     });
 
-    // ===== AUTO REPLY KE PELANGGAN =====
+    // ===== 2) Generate AI reply dengan fallback =====
+    let aiUsed = false;
+    let aiFallback = false;
+    let matchedIntent = null;
+    let autoReplyText = '';
+
+    try {
+      aiUsed = true;
+      autoReplyText = await generateAIReply({ nama, email, whatsapp, pesan });
+      autoReplyText = normalizeAndSanitizeText(autoReplyText, MAX.aiReply);
+    } catch (err) {
+      aiFallback = true;
+
+      // Hybrid fallback level 3:
+      // 1) Intent matching via detectKeyword (keyword scoring)
+      // 2) Semi AI logic via buildAutoReply
+      const detected = detectKeyword(pesan);
+      matchedIntent = detected?.matchedLabel || detected?.key?.[0] || null;
+
+      const keywordReplyText = buildFallbackReplyText(nama);
+      const semiAI = buildAutoReply(pesan, { nama });
+
+      autoReplyText = (semiAI?.replyText && semiAI.replyText.trim())
+        ? semiAI.replyText
+        : keywordReplyText;
+
+      logAIFallback({ reason: err?.message || 'AI error', matchedIntent });
+    }
+
+    if (!autoReplyText) {
+      // last resort
+      autoReplyText = buildFallbackReplyText(nama);
+      matchedIntent = matchedIntent || 'general';
+    }
+
+    // ===== 3) Auto reply ke pelanggan =====
+    const customerHtml = buildCustomerAutoReplyHtml({
+      nama,
+      replyText: autoReplyText,
+    });
+
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Balasan Otomatis - Lele Sehat Prima",
-      html: `
-        <h3>Halo ${nama},</h3>
-        <p>${replyMessage}</p>
-        <br>
-        <p>Terima kasih telah menghubungi kami.</p>
-      `,
+      subject: 'Balasan Otomatis - Lele Sehat Prima',
+      html: customerHtml,
+      replyTo: process.env.ADMIN_EMAIL,
     });
 
     return res.status(200).json({
       success: true,
-      message: "Email berhasil dikirim & auto reply aktif",
+      message: 'Email terkirim ke admin & auto-reply pelanggan',
+      ai: aiUsed ? (aiFallback ? 'fallback' : 'openai') : 'fallback',
+      matchedIntent,
+    });
+  } catch (error) {
+    logError({
+      message: error?.message || 'Unknown error',
+      ip,
+      path: req.url,
+      method: req.method,
+      err: error,
     });
 
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      success: false,
-      error: "Server error saat mengirim email",
-    });
+    let msg = error?.message || 'Server error saat memproses request';
+    if (msg === 'Request timeout') msg = 'Server timeout. Coba lagi sebentar lagi.';
+
+    return res.status(500).json({ success: false, error: msg });
   }
 }
+
