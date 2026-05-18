@@ -2,7 +2,8 @@
   "name": "lele-sehat-prima",
   "private": true,
   "dependencies": {
-    "nodemailer": "^8.0.7"
+    "nodemailer": "^8.0.7",
+    "openai": "^6.38.0"
   },
   "type": "module",
   "engines": {
