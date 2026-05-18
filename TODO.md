@@ -1,24 +1,26 @@
-# TODO - Upgrade Auto Reply Email jadi AI Customer Service Kontekstual
+# TODO - Upgrade Sistem Auto Reply Email (AI Customer Service Kontekstual)
 
-## Step 1: Analisis & plan final
-- [x] AI hanya dipakai (tanpa keyword matching) + fallback generik
-- [x] Identifikasi alur saat ini: AI + fallback keyword
-- [x] Validasi requirement: harus non-keyword & konteks percakapan
+## Completed
+- [x] Matikan fallback keyword sederhana di `api/send-email.js`
+- [x] Tambahkan conversation memory in-memory + kirim `conversationContext` ke `generateAIReply()`
+- [x] Update `api/aiService.js` agar prompt memakai konteks percakapan dan melarang ketergantungan keyword
 
-## Step 2: Implementasi perubahan kode
-- [x] Matikan fallback keyword:
-  - [x] Hapus penggunaan `detectKeyword()` dan `buildAutoReply()` dari `api/send-email.js`
-- [x] Implementasi conversation memory sederhana:
-  - [x] Buat in-memory cache Map (key: whatsapp/email)
-  - [x] Simpan ringkasan konteks percakapan
-  - [x] Kirim konteks tersebut ke `generateAIReply()`
-- [x] Update `api/aiService.js` agar menerima `conversationContext` dan memakainya dalam prompt
+## Gmail Inbox AI Auto-Reply (dari nol karena refresh token belum ada)
+- [ ] Buat endpoint OAuth untuk generate refresh token
+  - [x] `api/gmail-oauth-url.js`
+  - [x] `api/gmail-oauth-callback.js`
+- [ ] Buat worker polling inbox Gmail
+  - [x] `api/gmailAutoReplyWorker.js`
+  - [x] `api/gmailAutoReplyPoller.js`
+- [ ] Tambahkan runner untuk mulai polling di server lokal / Node runtime
+  - [ ] (Opsional) endpoint trigger: `POST /api/start-gmail-poller` atau script node
+- [ ] Buat dokumentasi cara pakai
+  - [ ] Cara akses `gmail-oauth-url` → consent → dapatkan `refresh_token`
+  - [ ] Cara menjalankan poller lokal (interval 15 detik)
 
-## Step 3: Rapikan impor
-- [ ] Hilangkan import yang tidak lagi dipakai (autoReplyKeywords/autoReplyService) dari `api/send-email.js`
-
-## Step 4: Uji manual
-- [ ] Kirim beberapa input test (follow-up, typo, panjang, ambigu)
-- [ ] Pastikan respon tetap ramah, singkat, relevan lele
-- [ ] Pastikan AI menolak di luar topik
+## Uji manual (wajib setelah polling jalan)
+- [ ] Pertanyaan panjang + typo ringan
+- [ ] Follow-up pertanyaan ambigu di thread yang sama
+- [ ] Di luar topik → harus fallback penolakan sopan
+- [ ] Anti-loop: kirim ulang email dari akun perusahaan → tidak dibalas
 
