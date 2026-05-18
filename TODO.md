@@ -1,13 +1,24 @@
-# TODO - Perbaikan /api/send-email (Vercel)
+# TODO - Upgrade Auto Reply Email jadi AI Customer Service Kontekstual
 
-- [x] Analisis kode `api/send-email.js` dan frontend `app.js` untuk memastikan kontrak request/response
-- [x] Susun edit plan sesuai requirement: handler serverless Vercel, validasi method, validasi input, try/catch, logging error, response JSON konsisten
-- [ ] Update `api/send-email.js` jadi ES module export default handler (Vercel style) dan pakai `import nodemailer from 'nodemailer'`
-- [ ] Pastikan endpoint selalu respons JSON (200/400/405/500) dan tidak crash
-- [x] Frontend menggunakan `fetch('/api/send-email')` + `e.preventDefault()` dan sudah ada loading button
-- [x] Pastikan `nodemailer` terpasang (`npm install nodemailer` jika perlu)
-- [ ] Verifikasi tidak ada error 500 / `Unexpected token <` dengan response JSON valid
+## Step 1: Analisis & plan final
+- [x] AI hanya dipakai (tanpa keyword matching) + fallback generik
+- [x] Identifikasi alur saat ini: AI + fallback keyword
+- [x] Validasi requirement: harus non-keyword & konteks percakapan
 
-- [x] Kumpulkan kode final lengkap dan siap deploy
+## Step 2: Implementasi perubahan kode
+- [x] Matikan fallback keyword:
+  - [x] Hapus penggunaan `detectKeyword()` dan `buildAutoReply()` dari `api/send-email.js`
+- [x] Implementasi conversation memory sederhana:
+  - [x] Buat in-memory cache Map (key: whatsapp/email)
+  - [x] Simpan ringkasan konteks percakapan
+  - [x] Kirim konteks tersebut ke `generateAIReply()`
+- [x] Update `api/aiService.js` agar menerima `conversationContext` dan memakainya dalam prompt
 
+## Step 3: Rapikan impor
+- [ ] Hilangkan import yang tidak lagi dipakai (autoReplyKeywords/autoReplyService) dari `api/send-email.js`
+
+## Step 4: Uji manual
+- [ ] Kirim beberapa input test (follow-up, typo, panjang, ambigu)
+- [ ] Pastikan respon tetap ramah, singkat, relevan lele
+- [ ] Pastikan AI menolak di luar topik
 

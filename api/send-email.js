@@ -1,9 +1,7 @@
 import nodemailer from "nodemailer";
 import { buildAdminEmailHtml, buildCustomerAutoReplyHtml } from "./emailTemplate.js";
 import { generateAIReply } from "./aiService.js";
-import { buildAutoReply } from "./autoReplyService.js";
-import { detectKeyword, buildFallbackReplyText } from "./autoReplyKeywords.js";
-import { logRequest, logError, logAIFallback } from "./logger.js";
+import { logRequest, logError } from "./logger.js";
 
 // Vercel serverless safe code:
 // - Tidak pakai database.
@@ -152,39 +150,42 @@ export default async function handler(req, res) {
       replyTo: email,
     });
 
-    // ===== 2) Generate AI reply dengan fallback =====
-    let aiUsed = false;
-    let aiFallback = false;
-    let matchedIntent = null;
+    // ===== 2) Generate AI reply (tanpa fallback keyword) =====
     let autoReplyText = '';
+    let aiFallback = false;
+
+    // Conversation memory sederhana: simpan konteks ringkas per (email atau whatsapp)
+    // Catatan: ini in-memory (tanpa DB) sehingga hanya bertahan selama instance berjalan.
+    const memory = (handler._memory = handler._memory || new Map());
+    const memoryKey = (whatsapp && String(whatsapp).trim()) ? String(whatsapp).trim() : String(email).trim();
+
+    const prev = memory.get(memoryKey);
+    const conversationContext = prev?.context || '';
 
     try {
-      aiUsed = true;
-      autoReplyText = await generateAIReply({ nama, email, whatsapp, pesan });
-      autoReplyText = normalizeAndSanitizeText(autoReplyText, MAX.aiReply);
+      const aiReplyRaw = await generateAIReply({
+        nama,
+        email,
+        whatsapp,
+        pesan,
+        conversationContext,
+      });
+      autoReplyText = normalizeAndSanitizeText(aiReplyRaw, MAX.aiReply);
     } catch (err) {
       aiFallback = true;
-
-      // Hybrid fallback level 3:
-      // 1) Intent matching via detectKeyword (keyword scoring)
-      // 2) Semi AI logic via buildAutoReply
-      const detected = detectKeyword(pesan);
-      matchedIntent = detected?.matchedLabel || detected?.key?.[0] || null;
-
-      const keywordReplyText = buildFallbackReplyText(nama);
-      const semiAI = buildAutoReply(pesan, { nama });
-
-      autoReplyText = (semiAI?.replyText && semiAI.replyText.trim())
-        ? semiAI.replyText
-        : keywordReplyText;
-
-      logAIFallback({ reason: err?.message || 'AI error', matchedIntent });
+      // Fallback generik (non-keyword) agar tetap sopan & relevan.
+      autoReplyText = normalizeAndSanitizeText(
+        `Halo ${nama || 'Pak/Bu'},\n\nMohon maaf, kami belum bisa memproses pesan Anda dengan tepat saat ini. Bisa jelaskan kebutuhan Anda sedikit lebih lengkap (jenis layanan: bibit/pembesaran/panen, jumlah/ukuran, dan lokasi)? Nanti kami bantu arahkan sesuai peternakan lele Lele Sehat Prima.`,
+        MAX.aiReply
+      );
     }
 
-    if (!autoReplyText) {
-      // last resort
-      autoReplyText = buildFallbackReplyText(nama);
-      matchedIntent = matchedIntent || 'general';
+    // Simpan konteks untuk follow-up berikutnya
+    if (memoryKey && autoReplyText) {
+      const trimmedPesan = String(pesan ?? '').slice(0, 220);
+      const trimmedReply = String(autoReplyText ?? '').slice(0, 220);
+      const newContext = `Pesan pelanggan sebelumnya: ${trimmedPesan}\nBalasan AI sebelumnya: ${trimmedReply}`;
+      memory.set(memoryKey, { context: newContext, updatedAt: Date.now() });
     }
 
     // ===== 3) Auto reply ke pelanggan =====
@@ -204,8 +205,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: 'Email terkirim ke admin & auto-reply pelanggan',
-      ai: aiUsed ? (aiFallback ? 'fallback' : 'openai') : 'fallback',
-      matchedIntent,
+      ai: aiFallback ? 'fallback' : 'openai',
     });
   } catch (error) {
     logError({

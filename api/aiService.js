@@ -19,7 +19,7 @@ function sanitizeForPrompt(text, maxLen = 4000) {
     .slice(0, maxLen);
 }
 
-export async function generateAIReply({ nama, email, whatsapp, pesan }) {
+export async function generateAIReply({ nama, email, whatsapp, pesan, conversationContext }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     const err = new Error('Missing OPENAI_API_KEY');
@@ -33,9 +33,17 @@ export async function generateAIReply({ nama, email, whatsapp, pesan }) {
   const safeEmail = sanitizeForPrompt(email, 200);
   const safeWa = sanitizeForPrompt(whatsapp || '-', 120);
   const safePesan = sanitizeForPrompt(pesan, 3000);
+  const safeContext = sanitizeForPrompt(conversationContext || '', 1400);
 
   const systemPrompt =
-    'Kamu adalah customer service profesional peternakan lele. Jawab dengan sopan, singkat, ramah, dan membantu pelanggan.';
+    'Kamu adalah AI Customer Service profesional untuk bisnis peternakan lele “Lele Sehat Prima”. ' +
+    'Tugasmu membaca seluruh isi email pelanggan, memahami maksudnya (meski berbeda kalimat/typo), ' +
+    'lalu membalas natural seperti admin/customer service manusia. ' +
+    'Jawab singkat, jelas (sekitar 90–140 kata), ramah, dan profesional. ' +
+    'Selalu relevan dengan pembibitan, pembesaran, panen lele, konsultasi budidaya, serta pemesanan bibit/hasil panen. ' +
+    'Jika pertanyaan di luar topik, tolak dengan sopan. ' +
+    'Gunakan percakapan konteks yang diberikan untuk follow-up. ' +
+    'JANGAN mengandalkan pencocokan keyword sederhana. Jangan menyebut proses deteksi keyword.';
 
   const userPrompt = `
 Data pelanggan:
@@ -43,15 +51,20 @@ Data pelanggan:
 - Email: ${safeEmail}
 - WhatsApp: ${safeWa}
 
-Pertanyaan pelanggan:
+Konteks percakapan sebelumnya (jika ada):
+${safeContext || '- (tidak ada)'}
+
+Isi email pelanggan (dibaca penuh):
 ${safePesan}
 
 Kebutuhan jawaban:
 - fokus peternakan lele
-- tidak terlalu panjang (maks ~90-140 kata)
-- tidak menggunakan Markdown panjang
-- tetap sopan dan natural
-`;
+- bahasa Indonesia natural
+- boleh menjawab beberapa pertanyaan sekaligus
+- jika pertanyaan tidak jelas, minta detail singkat yang dibutuhkan
+- jika pelanggan menanyakan harga: jelaskan bahwa harga tergantung jumlah & lokasi, dan arahkan untuk detail via WhatsApp
+- jika pelanggan ingin konsultasi: arahkan untuk chat WhatsApp dengan data kebutuhan
+- jika AI bingung, pakai fallback: "Mohon maaf, kami belum memahami detail kebutuhan Anda..."\r\n`;
 
   try {
     // Timeout untuk request OpenAI
