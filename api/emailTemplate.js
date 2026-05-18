@@ -60,7 +60,7 @@ export function buildAdminEmailHtml({ nama, email, whatsapp, pesan }) {
             <p class="muted">Permintaan baru</p>
             <h1 class="title">Pesan Baru dari Website</h1>
           </div>
-          <span class="badge">AI Customer Service Level 3</span>
+          <span class="badge">Pesan ini Otomatis</span>
         </div>
 
         <div class="row">
